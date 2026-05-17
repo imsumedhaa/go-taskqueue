@@ -22,15 +22,15 @@ func (r *TaskRepository) InsertTask(ctx context.Context, tasktype string, payloa
 
 	id := uuid.New().String()
 
-	payloadbyte, err := json.Marshal(payload)
+	payloadByte, err := json.Marshal(payload)
 
 	if err != nil {
 		return "", fmt.Errorf("Error in marshal the payload %w\n", err)
 	}
 
-	query := `insert into tasks(id, tasktype, payload) values ($1, $2, $3)`
+	query := `insert into tasks(id, type, payload) values ($1, $2, $3)`
 
-	_, err = r.db.Pool.Exec(ctx, query, id, tasktype, payloadbyte)
+	_, err = r.db.Pool.Exec(ctx, query, id, tasktype, payloadByte)
 
 	if err != nil {
 		return "", fmt.Errorf("Error in inserting %w\n", err)
@@ -39,26 +39,33 @@ func (r *TaskRepository) InsertTask(ctx context.Context, tasktype string, payloa
 	return id, nil
 }
 
-func (r *TaskRepository) GetPendingTask(ctx context.Context) (string, string, interface{}, error) {
+func (r *TaskRepository) GetPendingTask(ctx context.Context) (string, string, []byte, int, int, error) {
 
 	var id string
 	var tasktype string
 	var payload []byte
+	var retryCount int
+	var maxRetry int
 
 	tx, err := r.db.Pool.Begin(ctx)
 
 	if err != nil {
-		return "", "", nil, fmt.Errorf("failed to begin the transaction: %w", err)
+		return "", "", nil, 0, 0, fmt.Errorf("failed to begin the transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
 	query := `
-		select id, type, payload from tasks where status='pending' order by for update skip locked  created_at limit 1
+		SELECT id, type, payload, retry_count, max_retries
+		FROM tasks
+		WHERE status = 'pending'
+		ORDER BY created_at
+		FOR UPDATE SKIP LOCKED
+		LIMIT 1
 	`
 
-	err = tx.QueryRow(ctx, query).Scan(&id, &tasktype, &payload)
+	err = tx.QueryRow(ctx, query).Scan(&id, &tasktype, &payload, &retryCount, &maxRetry)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("failed to fetch the pendind task: %w", err)
+		return "", "", nil, 0, 0, fmt.Errorf("failed to fetch the pendind task: %w", err)
 	}
 
 	updateQuery := `
@@ -68,20 +75,22 @@ func (r *TaskRepository) GetPendingTask(ctx context.Context) (string, string, in
 	_, err = tx.Exec(ctx, updateQuery, id)
 
 	if err != nil {
-		return "", "", nil, fmt.Errorf("failed to update the status of the id: %w", err)
+		return "", "", nil, 0, 0, fmt.Errorf("failed to update the status of the id: %w", err)
 	}
 
 	err = tx.Commit(ctx)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("failed to commit transaction: %w", err)
+		return "", "", nil, 0, 0, fmt.Errorf("failed to commit transaction: %w", err)
 	}
-	return id, tasktype, payload, nil
+	return id, tasktype, payload, retryCount, maxRetry, nil
 
 }
 
 // Update task status to completed / failed / retry
 
 func (r *TaskRepository) UpdateTaskStatus(ctx context.Context, id string, status string, errMsg string) error {
+
+	// if the status is failed then retry count will increase by 1, otherwise same as before
 
 	query := ` 
 	UPDATE tasks 

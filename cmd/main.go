@@ -1,12 +1,11 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"time"
 
-	"github.com/imsumedhaa/go-taskqueue/internals/queue"
-	"github.com/imsumedhaa/go-taskqueue/internals/task"
+	"github.com/imsumedhaa/go-taskqueue/internals/database"
 	"github.com/imsumedhaa/go-taskqueue/internals/worker"
 )
 
@@ -14,30 +13,38 @@ func main() {
 
 	fmt.Println("Starting Task Queue System...")
 
-	// Create Queue
-	q := queue.NewQueue(10)
+	ctx := context.Background()
 
-	// 2. Start Worker Pool --> worker 3
-	worker.StartWorkerPool(3, q)
+	db, err := database.NewDB()
+	if err != nil {
+		panic(err)
+	}
+	err = db.CreateTaskTable(ctx)
+	if err != nil {
+		panic(err)
+	}
 
-	// 3. Create Tasks
-	emailPayload, _ := json.Marshal(map[string]string{
-		"to":      "user@gmail.com",
-		"subject": "Hello",
+	repo := database.NewTaskRepository(db)
+
+	_, err = repo.InsertTask(ctx, "send-email", map[string]string{
+		"to":      "sumedha@gmail.com",
+		"subject": "hello world",
 	})
+	if err != nil {
+		fmt.Println("Error creating email task:", err)
+	}
 
-	reportPayload, _ := json.Marshal(map[string]string{
-		"report": "monthly_sales",
+	repo.InsertTask(ctx, "generate_report", map[string]string{
+		"report": "monthly_salary",
 	})
+	if err != nil {
+		fmt.Println("Error creating report task:", err)
+	}
 
-	task1 := task.NewTask("send_email", emailPayload)
-	task2 := task.NewTask("generate_report", reportPayload)
+	fmt.Println("Tasks inserted into db")
 
-	q.Enqueue(task1)
-	q.Enqueue(task2)
+	worker.StartWorkerPool(ctx, 3, repo)
 
-	fmt.Println("Tasks submitted successfully")
-
-	time.Sleep(10 * time.Second)
+	time.Sleep(20 * time.Second)
 
 }
