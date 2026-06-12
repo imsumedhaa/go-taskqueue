@@ -56,7 +56,7 @@ func (w *Worker) Start(ctx context.Context) {
 
 			// retry logic -> worker only retry the task if it doesn't cross the max retries limit
 
-			if retryCount+1 < maxRetry {
+			if retryCount+1 <= maxRetry {
 
 				fmt.Printf(
 					"Worker %d retrying task %s (%d/%d)\n",
@@ -122,7 +122,7 @@ func (w *Worker) executeTask(tasktype string, payload []byte) error {
 func StartWorkerPool(ctx context.Context, numWorkers int, repo *database.TaskRepository) {
 
 	for i := 1; i <= numWorkers; i++ {
-		workers := NewWorker(i, *&repo)
+		workers := NewWorker(i, repo)
 		go workers.Start(ctx)
 	}
 

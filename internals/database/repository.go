@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type TaskRepository struct {
@@ -65,6 +66,9 @@ func (r *TaskRepository) GetPendingTask(ctx context.Context) (string, string, []
 
 	err = tx.QueryRow(ctx, query).Scan(&id, &tasktype, &payload, &retryCount, &maxRetry)
 	if err != nil {
+		if err == pgx.ErrNoRows{
+			return "", "", nil, 0, 0, err
+		}
 		return "", "", nil, 0, 0, fmt.Errorf("failed to fetch the pendind task: %w", err)
 	}
 

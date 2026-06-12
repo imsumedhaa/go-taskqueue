@@ -26,7 +26,7 @@ func main() {
 
 	repo := database.NewTaskRepository(db)
 
-	_, err = repo.InsertTask(ctx, "send-email", map[string]string{
+	_, err = repo.InsertTask(ctx, "send_email", map[string]string{
 		"to":      "sumedha@gmail.com",
 		"subject": "hello world",
 	})
@@ -34,7 +34,7 @@ func main() {
 		fmt.Println("Error creating email task:", err)
 	}
 
-	repo.InsertTask(ctx, "generate_report", map[string]string{
+	_, err = repo.InsertTask(ctx, "generate_report", map[string]string{
 		"report": "monthly_salary",
 	})
 	if err != nil {
