@@ -113,7 +113,7 @@ func (w *Worker) executeTask(tasktype string, payload []byte) error {
 		return nil
 
 	default:
-		return fmt.Errorf("Worker %d received unknown task type %s\n", w.ID)
+		return fmt.Errorf("worker %d received unknown task type %s", w.ID, tasktype)
 
 	}
 
